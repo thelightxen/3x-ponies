@@ -2,6 +2,7 @@
 <html lang="en">
 {{template "head" .}}
 <style>
+
   html * {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -9,11 +10,11 @@
 
   h1 {
     text-align: center;
-    /*margin: 20px 0 50px 0;*/
+     
     height: 110px;
   }
 
-  .ant-form-item-children .ant-btn,
+  .ant-btn,
   .ant-input {
     height: 50px;
     border-radius: 30px;
@@ -42,8 +43,7 @@
   }
 
   .title {
-    font-size: 2rem;
-    margin-block-end: 2rem;
+    font-size: 32px;
   }
 
   .title b {
@@ -58,7 +58,7 @@
     animation: charge 0.5s both;
     background-color: #fff;
     border-radius: 2rem;
-    padding: 4rem 3rem;
+    padding: 3rem;
     transition: all 0.3s;
     user-select: none;
     -webkit-user-select: none;
@@ -247,7 +247,7 @@
     width: 100%;
     height: 15vh;
     margin-bottom: -8px;
-    /*Fix for safari gap*/
+     
     min-height: 100px;
     max-height: 150px;
   }
@@ -440,11 +440,20 @@
     position: absolute;
     top: 0;
     right: 0;
-    padding: 22px;
+    padding: 24px;
   }
 
-  .ant-space-item .ant-switch {
-    margin: 2px 0 4px;
+  .setting-section > .ant-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .waves-header {
+    display: none;
+  }
+  main {
+    background-image: url(/assets/bg.jpeg);
+    background-size: cover;
+    background-position: center;
   }
 </style>
 
@@ -489,7 +498,7 @@
             <a-row type="flex" justify="center">
               <a-col :style="{ width: '100%' }">
                 <h2 class="title headline zoom">
-                  <span class="words-wrapper">
+                  <span class="words-wrapper femboy">
                     <b class="is-visible">{{ i18n "pages.login.hello" }}</b>
                     <b>{{ i18n "pages.login.title" }}</b>
                   </span>

@@ -33,5 +33,6 @@ Thumbs.db
 *.exe
 *.exe~
 
+db/
 # Ignore Docker specific files
 docker-compose.override.yml
