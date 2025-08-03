@@ -633,7 +633,7 @@ TlsStreamSettings.Cert = class extends XrayCommonClass {
         keyFile = '',
         certificate = '',
         key = '',
-        ocspStapling = 3600,
+        ocspStapling = 0,
         oneTimeLoading = false,
         usage = USAGE_OPTION.ENCIPHERMENT,
         buildChain = false,
@@ -725,13 +725,14 @@ class RealityStreamSettings extends XrayCommonClass {
     constructor(
         show = false,
         xver = 0,
-        dest = 'yahoo.com:443',
-        serverNames = 'yahoo.com,www.yahoo.com',
+        dest = 'google.com:443',
+        serverNames = 'google.com,www.google.com',
         privateKey = '',
-        minClient = '',
-        maxClient = '',
+        minClientVer = '',
+        maxClientVer = '',
         maxTimediff = 0,
         shortIds = RandomUtil.randomShortIds(),
+        mldsa65Seed = '',
         settings = new RealityStreamSettings.Settings()
     ) {
         super();
@@ -740,10 +741,11 @@ class RealityStreamSettings extends XrayCommonClass {
         this.dest = dest;
         this.serverNames = Array.isArray(serverNames) ? serverNames.join(",") : serverNames;
         this.privateKey = privateKey;
-        this.minClient = minClient;
-        this.maxClient = maxClient;
+        this.minClientVer = minClientVer;
+        this.maxClientVer = maxClientVer;
         this.maxTimediff = maxTimediff;
         this.shortIds = Array.isArray(shortIds) ? shortIds.join(",") : shortIds;
+        this.mldsa65Seed = mldsa65Seed;
         this.settings = settings;
     }
 
@@ -754,7 +756,8 @@ class RealityStreamSettings extends XrayCommonClass {
                 json.settings.publicKey,
                 json.settings.fingerprint,
                 json.settings.serverName,
-                json.settings.spiderX
+                json.settings.spiderX,
+                json.settings.mldsa65Verify,
             );
         }
         return new RealityStreamSettings(
@@ -763,10 +766,11 @@ class RealityStreamSettings extends XrayCommonClass {
             json.dest,
             json.serverNames,
             json.privateKey,
-            json.minClient,
-            json.maxClient,
+            json.minClientVer,
+            json.maxClientVer,
             json.maxTimediff,
             json.shortIds,
+            json.mldsa65Seed,
             settings,
         );
     }
@@ -778,10 +782,11 @@ class RealityStreamSettings extends XrayCommonClass {
             dest: this.dest,
             serverNames: this.serverNames.split(","),
             privateKey: this.privateKey,
-            minClient: this.minClient,
-            maxClient: this.maxClient,
+            minClientVer: this.minClientVer,
+            maxClientVer: this.maxClientVer,
             maxTimediff: this.maxTimediff,
             shortIds: this.shortIds.split(","),
+            mldsa65Seed: this.mldsa65Seed,
             settings: this.settings,
         };
     }
@@ -792,13 +797,15 @@ RealityStreamSettings.Settings = class extends XrayCommonClass {
         publicKey = '',
         fingerprint = UTLS_FINGERPRINT.UTLS_CHROME,
         serverName = '',
-        spiderX = '/'
+        spiderX = '/',
+        mldsa65Verify = ''
     ) {
         super();
         this.publicKey = publicKey;
         this.fingerprint = fingerprint;
         this.serverName = serverName;
         this.spiderX = spiderX;
+        this.mldsa65Verify = mldsa65Verify;
     }
     static fromJson(json = {}) {
         return new RealityStreamSettings.Settings(
@@ -806,6 +813,7 @@ RealityStreamSettings.Settings = class extends XrayCommonClass {
             json.fingerprint,
             json.serverName,
             json.spiderX,
+            json.mldsa65Verify
         );
     }
     toJson() {
@@ -814,6 +822,7 @@ RealityStreamSettings.Settings = class extends XrayCommonClass {
             fingerprint: this.fingerprint,
             serverName: this.serverName,
             spiderX: this.spiderX,
+            mldsa65Verify: this.mldsa65Verify
         };
     }
 };
@@ -1376,6 +1385,7 @@ class Inbound extends XrayCommonClass {
             params.set("security", "reality");
             params.set("pbk", this.stream.reality.settings.publicKey);
             params.set("fp", this.stream.reality.settings.fingerprint);
+            params.set("pqv", this.stream.reality.settings.mldsa65Verify);
             if (!ObjectUtil.isArrEmpty(this.stream.reality.serverNames)) {
                 params.set("sni", this.stream.reality.serverNames.split(",")[0]);
             }
@@ -1550,6 +1560,7 @@ class Inbound extends XrayCommonClass {
             params.set("security", "reality");
             params.set("pbk", this.stream.reality.settings.publicKey);
             params.set("fp", this.stream.reality.settings.fingerprint);
+            params.set("pqv", this.stream.reality.settings.mldsa65Verify);
             if (!ObjectUtil.isArrEmpty(this.stream.reality.serverNames)) {
                 params.set("sni", this.stream.reality.serverNames.split(",")[0]);
             }
