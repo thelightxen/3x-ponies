@@ -24,9 +24,12 @@ func NewInboundController(g *gin.RouterGroup) *InboundController {
 }
 
 func (a *InboundController) initRouter(g *gin.RouterGroup) {
-	g = g.Group("/inbound")
 
-	g.POST("/list", a.getInbounds)
+	g.GET("/list", a.getInbounds)
+	g.GET("/get/:id", a.getInbound)
+	g.GET("/getClientTraffics/:email", a.getClientTraffics)
+	g.GET("/getClientTrafficsById/:id", a.getClientTrafficsById)
+
 	g.POST("/add", a.addInbound)
 	g.POST("/del/:id", a.delInbound)
 	g.POST("/update/:id", a.updateInbound)
@@ -41,6 +44,8 @@ func (a *InboundController) initRouter(g *gin.RouterGroup) {
 	g.POST("/delDepletedClients/:id", a.delDepletedClients)
 	g.POST("/import", a.importInbound)
 	g.POST("/onlines", a.onlines)
+	g.POST("/lastOnline", a.lastOnline)
+	g.POST("/updateClientTraffic/:email", a.updateClientTraffic)
 }
 
 func (a *InboundController) getInbounds(c *gin.Context) {
@@ -338,6 +343,11 @@ func (a *InboundController) delDepletedClients(c *gin.Context) {
 
 func (a *InboundController) onlines(c *gin.Context) {
 	jsonObj(c, a.inboundService.GetOnlineClients(), nil)
+}
+
+func (a *InboundController) lastOnline(c *gin.Context) {
+	data, err := a.inboundService.GetClientsLastOnline()
+	jsonObj(c, data, err)
 }
 
 func (a *InboundController) updateClientTraffic(c *gin.Context) {

@@ -706,7 +706,7 @@
     }, {
         title: '{{ i18n "pages.inbounds.enable" }}',
         align: 'center',
-        width: 30,
+        width: 35,
         scopedSlots: { customRender: 'enable' },
     }, {
         title: '{{ i18n "pages.inbounds.remark" }}',
@@ -731,12 +731,12 @@
     }, {
         title: '{{ i18n "pages.inbounds.traffic" }}',
         align: 'center',
-        width: 60,
+        width: 90,
         scopedSlots: { customRender: 'traffic' },
     }, {
         title: '{{ i18n "pages.inbounds.allTimeTraffic" }}',
         align: 'center',
-        width: 60,
+        width: 70,
         scopedSlots: { customRender: 'allTimeInbound' },
     }, {
         title: '{{ i18n "pages.inbounds.expireDate" }}',
@@ -770,14 +770,12 @@
 
     const innerColumns = [
         { title: '{{ i18n "pages.inbounds.operate" }}', width: 65, scopedSlots: { customRender: 'actions' } },
-        { title: '{{ i18n "pages.inbounds.enable" }}', width: 30, scopedSlots: { customRender: 'enable' } },
-        { title: '{{ i18n "online" }}', width: 30, scopedSlots: { customRender: 'online' } },
+        { title: '{{ i18n "pages.inbounds.enable" }}', width: 35, scopedSlots: { customRender: 'enable' } },
+        { title: '{{ i18n "online" }}', width: 32, scopedSlots: { customRender: 'online' } },
         { title: '{{ i18n "pages.inbounds.client" }}', width: 80, scopedSlots: { customRender: 'client' } },
         { title: '{{ i18n "pages.inbounds.traffic" }}', width: 80, align: 'center', scopedSlots: { customRender: 'traffic' } },
         { title: '{{ i18n "pages.inbounds.allTimeTraffic" }}', width: 80, align: 'center', scopedSlots: { customRender: 'allTime' } },
         { title: '{{ i18n "pages.inbounds.expireDate" }}', width: 80, align: 'center', scopedSlots: { customRender: 'expiryTime' } },
-        { title: '{{ i18n "pages.inbounds.createdAt" }}', width: 90, align: 'center', scopedSlots: { customRender: 'createdAt' } },
-        { title: '{{ i18n "pages.inbounds.updatedAt" }}', width: 90, align: 'center', scopedSlots: { customRender: 'updatedAt' } },
     ];
 
     const innerMobileColumns = [
@@ -809,6 +807,7 @@
             defaultKey: '',
             clientCount: [],
             onlineClients: [],
+            lastOnlineMap: {},
             isRefreshEnabled: localStorage.getItem("isRefreshEnabled") === "true" ? true : false,
             refreshing: false,
             refreshInterval: Number(localStorage.getItem("refreshInterval")) || 5000,
@@ -831,12 +830,13 @@
             },
             async getDBInbounds() {
                 this.refreshing = true;
-                const msg = await HttpUtil.post('/panel/inbound/list');
+                const msg = await HttpUtil.get('/panel/api/inbounds/list');
                 if (!msg.success) {
                     this.refreshing = false;
                     return;
                 }
 
+                await this.getLastOnlineMap();
                 await this.getOnlineUsers();
                 
                 this.setInbounds(msg.obj);
@@ -845,11 +845,16 @@
                 }, 500);
             },
             async getOnlineUsers() {
-                const msg = await HttpUtil.post('/panel/inbound/onlines');
+                const msg = await HttpUtil.post('/panel/api/inbounds/onlines');
                 if (!msg.success) {
                     return;
                 }
                 this.onlineClients = msg.obj != null ? msg.obj : [];
+            },
+            async getLastOnlineMap() {
+                const msg = await HttpUtil.post('/panel/api/inbounds/lastOnline');
+                if (!msg.success || !msg.obj) return;
+                this.lastOnlineMap = msg.obj || {}
             },
             async getDefaultSettings() {
                 const msg = await HttpUtil.post('/panel/setting/defaultSettings');
@@ -1094,7 +1099,7 @@
                     streamSettings: baseInbound.stream.toString(),
                     sniffing: baseInbound.sniffing.toString(),
                 };
-                await this.submit('/panel/inbound/add', data, inModal);
+                await this.submit('/panel/api/inbounds/add', data, inModal);
             },
             openAddInbound() {
                 inModal.show({
@@ -1143,7 +1148,7 @@
                 }
                 data.sniffing = inbound.sniffing.toString();
 
-                await this.submit('/panel/inbound/add', data, inModal);
+                await this.submit('/panel/api/inbounds/add', data, inModal);
             },
             async updateInbound(inbound, dbInbound) {
                 const data = {
@@ -1166,7 +1171,7 @@
                 }
                 data.sniffing = inbound.sniffing.toString();
 
-                await this.submit(`/panel/inbound/update/${dbInbound.id}`, data, inModal);
+                await this.submit(`/panel/api/inbounds/update/${dbInbound.id}`, data, inModal);
             },
             openAddClient(dbInboundId) {
                 dbInbound = this.dbInbounds.find(row => row.id === dbInboundId);
@@ -1221,14 +1226,14 @@
                     id: dbInboundId,
                     settings: '{"clients": [' + clients.toString() + ']}',
                 };
-                await this.submit(`/panel/inbound/addClient`, data, modal);
+                await this.submit(`/panel/api/inbounds/addClient`, data, modal);
             },
             async updateClient(client, dbInboundId, clientId) {
                 const data = {
                     id: dbInboundId,
                     settings: '{"clients": [' + client.toString() + ']}',
                 };
-                await this.submit(`/panel/inbound/updateClient/${clientId}`, data, clientModal);
+                await this.submit(`/panel/api/inbounds/updateClient/${clientId}`, data, clientModal);
             },
             resetTraffic(dbInboundId) {
                 dbInbound = this.dbInbounds.find(row => row.id === dbInboundId);
@@ -1253,7 +1258,7 @@
                     class: themeSwitcher.currentTheme,
                     okText: '{{ i18n "delete"}}',
                     cancelText: '{{ i18n "cancel"}}',
-                    onOk: () => this.submit('/panel/inbound/del/' + dbInboundId),
+                    onOk: () => this.submit('/panel/api/inbounds/del/' + dbInboundId),
                 });
             },
             delClient(dbInboundId, client,confirmation = true) {
@@ -1266,10 +1271,10 @@
                         class: themeSwitcher.currentTheme,
                         okText: '{{ i18n "delete"}}',
                         cancelText: '{{ i18n "cancel"}}',
-                        onOk: () => this.submit(`/panel/inbound/${dbInboundId}/delClient/${clientId}`),
+                        onOk: () => this.submit(`/panel/api/inbounds/${dbInboundId}/delClient/${clientId}`),
                     });
                 } else {
-                    this.submit(`/panel/inbound/${dbInboundId}/delClient/${clientId}`);
+                    this.submit(`/panel/api/inbounds/${dbInboundId}/delClient/${clientId}`);
                 }
             },
             getSubGroupClients(dbInbounds, currentClient) {
@@ -1348,7 +1353,7 @@
             switchEnable(dbInboundId,state) {
               dbInbound = this.dbInbounds.find(row => row.id === dbInboundId);
               dbInbound.enable = state;
-              this.submit(`/panel/inbound/update/${dbInboundId}`, dbInbound);
+              this.submit(`/panel/api/inbounds/update/${dbInboundId}`, dbInbound);
             },
             async switchEnableClient(dbInboundId, client) {
                 this.loading()
@@ -1378,10 +1383,10 @@
                         class: themeSwitcher.currentTheme,
                         okText: '{{ i18n "reset"}}',
                         cancelText: '{{ i18n "cancel"}}',
-                        onOk: () => this.submit('/panel/inbound/' + dbInboundId + '/resetClientTraffic/' + client.email),
+                        onOk: () => this.submit('/panel/api/inbounds/' + dbInboundId + '/resetClientTraffic/' + client.email),
                     })
                 } else {
-                    this.submit('/panel/inbound/' + dbInboundId + '/resetClientTraffic/' + client.email);
+                    this.submit('/panel/api/inbounds/' + dbInboundId + '/resetClientTraffic/' + client.email);
                 }
             },
             resetAllTraffic() {
@@ -1391,7 +1396,7 @@
                     class: themeSwitcher.currentTheme,
                     okText: '{{ i18n "reset"}}',
                     cancelText: '{{ i18n "cancel"}}',
-                    onOk: () => this.submit('/panel/inbound/resetAllTraffics'),
+                    onOk: () => this.submit('/panel/api/inbounds/resetAllTraffics'),
                 });
             },
             resetAllClientTraffics(dbInboundId) {
@@ -1401,7 +1406,7 @@
                     class: themeSwitcher.currentTheme,
                     okText: '{{ i18n "reset"}}',
                     cancelText: '{{ i18n "cancel"}}',
-                    onOk: () => this.submit('/panel/inbound/resetAllClientTraffics/' + dbInboundId),
+                    onOk: () => this.submit('/panel/api/inbounds/resetAllClientTraffics/' + dbInboundId),
                 })
             },
             delDepletedClients(dbInboundId) {
@@ -1411,7 +1416,7 @@
                     class: themeSwitcher.currentTheme,
                     okText: '{{ i18n "delete"}}',
                     cancelText: '{{ i18n "cancel"}}',
-                    onOk: () => this.submit('/panel/inbound/delDepletedClients/' + dbInboundId),
+                    onOk: () => this.submit('/panel/api/inbounds/delDepletedClients/' + dbInboundId),
                 })
             },
             isExpiry(dbInbound, index) {
@@ -1495,6 +1500,17 @@
             isClientOnline(email) {
                 return this.onlineClients.includes(email);
             },
+            getLastOnline(email) {
+                return this.lastOnlineMap[email] || null
+            },
+            formatLastOnline(email) {
+                const ts = this.getLastOnline(email)
+                if (!ts) return '-'
+                if (this.datepicker === 'gregorian') {
+                    return DateUtil.formatMillis(ts)
+                }
+                return DateUtil.convertToJalalian(moment(ts))
+            },
             isRemovable(dbInboundId) {
                 return this.getInboundClients(this.dbInbounds.find(row => row.id === dbInboundId)).length > 1;
             },
@@ -1526,7 +1542,7 @@
                     value: '',
                     okText: '{{ i18n "pages.inbounds.import" }}',
                     confirm: async (dbInboundText) => {
-                        await this.submit('/panel/inbound/import', {data: dbInboundText}, promptModal);
+                        await this.submit('/panel/api/inbounds/import', {data: dbInboundText}, promptModal);
                     },
                 });
             },
