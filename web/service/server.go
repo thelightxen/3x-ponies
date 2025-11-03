@@ -110,6 +110,7 @@ type ServerService struct {
 	mu                 sync.Mutex
 	lastCPUTimes       cpu.TimesStat
 	hasLastCPUSample   bool
+	hasNativeCPUSample bool
 	emaCPU             float64
 	cpuHistory         []CPUSample
 	cachedCpuSpeedMhz  float64
@@ -432,23 +433,27 @@ func (s *ServerService) AppendCpuSample(t time.Time, v float64) {
 }
 
 func (s *ServerService) sampleCPUUtilization() (float64, error) {
-	// Prefer native Windows API to avoid external deps for CPU percent
-	if runtime.GOOS == "windows" {
-		if pct, err := sys.CPUPercentRaw(); err == nil {
-			s.mu.Lock()
-			// Smooth with EMA
-			const alpha = 0.3
-			if s.emaCPU == 0 {
-				s.emaCPU = pct
-			} else {
-				s.emaCPU = alpha*pct + (1-alpha)*s.emaCPU
-			}
-			val := s.emaCPU
+	// Try native platform-specific CPU implementation first (Windows, Linux, macOS)
+	if pct, err := sys.CPUPercentRaw(); err == nil {
+		s.mu.Lock()
+		// First call to native method returns 0 (initializes baseline)
+		if !s.hasNativeCPUSample {
+			s.hasNativeCPUSample = true
 			s.mu.Unlock()
-			return val, nil
+			return 0, nil
 		}
-		// If native call fails, fall back to gopsutil times
+		// Smooth with EMA
+		const alpha = 0.3
+		if s.emaCPU == 0 {
+			s.emaCPU = pct
+		} else {
+			s.emaCPU = alpha*pct + (1-alpha)*s.emaCPU
+		}
+		val := s.emaCPU
+		s.mu.Unlock()
+		return val, nil
 	}
+	// If native call fails, fall back to gopsutil times
 	// Read aggregate CPU times (all CPUs combined)
 	times, err := cpu.Times(false)
 	if err != nil {
@@ -471,17 +476,16 @@ func (s *ServerService) sampleCPUUtilization() (float64, error) {
 	}
 
 	// Compute busy and total deltas
+	// Note: Guest and GuestNice times are already included in User and Nice respectively,
+	// so we exclude them to avoid double-counting (Linux kernel accounting)
 	idleDelta := cur.Idle - s.lastCPUTimes.Idle
-	// Sum of busy deltas (exclude Idle)
 	busyDelta := (cur.User - s.lastCPUTimes.User) +
 		(cur.System - s.lastCPUTimes.System) +
 		(cur.Nice - s.lastCPUTimes.Nice) +
 		(cur.Iowait - s.lastCPUTimes.Iowait) +
 		(cur.Irq - s.lastCPUTimes.Irq) +
 		(cur.Softirq - s.lastCPUTimes.Softirq) +
-		(cur.Steal - s.lastCPUTimes.Steal) +
-		(cur.Guest - s.lastCPUTimes.Guest) +
-		(cur.GuestNice - s.lastCPUTimes.GuestNice)
+		(cur.Steal - s.lastCPUTimes.Steal)
 
 	totalDelta := busyDelta + idleDelta
 
@@ -938,13 +942,26 @@ func (s *ServerService) ImportDB(file multipart.File) error {
 		return common.NewErrorf("Error saving db: %v", err)
 	}
 
-	// Check if we can init the db or not
-	if err = database.InitDB(tempPath); err != nil {
-		return common.NewErrorf("Error checking db: %v", err)
+	// Close temp file before opening via sqlite
+	if err = tempFile.Close(); err != nil {
+		return common.NewErrorf("Error closing temporary db file: %v", err)
+	}
+	tempFile = nil
+
+	// Validate integrity (no migrations / side effects)
+	if err = database.ValidateSQLiteDB(tempPath); err != nil {
+		return common.NewErrorf("Invalid or corrupt db file: %v", err)
 	}
 
-	// Stop Xray
-	s.StopXrayService()
+	// Stop Xray (ignore error but log)
+	if errStop := s.StopXrayService(); errStop != nil {
+		logger.Warningf("Failed to stop Xray before DB import: %v", errStop)
+	}
+
+	// Close existing DB to release file locks (especially on Windows)
+	if errClose := database.CloseDB(); errClose != nil {
+		logger.Warningf("Failed to close existing DB before replacement: %v", errClose)
+	}
 
 	// Backup the current database for fallback
 	fallbackPath := fmt.Sprintf("%s.backup", config.GetDBPath())
@@ -979,7 +996,7 @@ func (s *ServerService) ImportDB(file multipart.File) error {
 		return common.NewErrorf("Error moving db file: %v", err)
 	}
 
-	// Migrate DB
+	// Open & migrate new DB
 	if err = database.InitDB(config.GetDBPath()); err != nil {
 		if errRename := os.Rename(fallbackPath, config.GetDBPath()); errRename != nil {
 			return common.NewErrorf("Error migrating db and restoring fallback: %v", errRename)

@@ -266,6 +266,16 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	s.panel = controller.NewXUIController(g)
 	s.api = controller.NewAPIController(g)
 
+	// Chrome DevTools endpoint for debugging web apps
+	engine.GET("/.well-known/appspecific/com.chrome.devtools.json", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{})
+	})
+
+	// Add a catch-all route to handle undefined paths and return 404
+	engine.NoRoute(func(c *gin.Context) {
+		c.AbortWithStatus(http.StatusNotFound)
+	})
+
 	return engine, nil
 }
 
@@ -308,6 +318,17 @@ func (s *Server) startTask() {
 	s.cron.AddJob("@weekly", job.NewPeriodicTrafficResetJob("weekly"))
 	// Run once a month, midnight, first of month
 	s.cron.AddJob("@monthly", job.NewPeriodicTrafficResetJob("monthly"))
+
+	// LDAP sync scheduling
+	if ldapEnabled, _ := s.settingService.GetLdapEnable(); ldapEnabled {
+		runtime, err := s.settingService.GetLdapSyncCron()
+		if err != nil || runtime == "" {
+			runtime = "@every 1m"
+		}
+		j := job.NewLdapSyncJob()
+		// job has zero-value services with method receivers that read settings on demand
+		s.cron.AddJob(runtime, j)
+	}
 
 	// Make a traffic condition every day, 8:30
 	var entry cron.EntryID
